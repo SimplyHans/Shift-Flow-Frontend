@@ -11,45 +11,52 @@ type ScheduleRowProps = {
   name: string;
   shiftsByDay: (Shift | string | null)[];
   isHeader?: boolean;
-  onPress?: () => void;
+  onCellPress?: (dayIndex: number, shift: Shift | null) => void;
 };
 
 export default function ScheduleRow({
   name,
   shiftsByDay,
   isHeader = false,
-  onPress,
+  onCellPress,
 }: ScheduleRowProps) {
-  const RowWrapper: any = !isHeader && onPress ? Pressable : View;
-
   return (
-    <RowWrapper style={styles.row} onPress={onPress}>
-      {/* Name column */}
+    <View style={styles.row}>
       <View style={styles.cell}>
         <Text style={[styles.cellText, isHeader && styles.headerText]}>
           {name}
         </Text>
       </View>
 
-      {/* Day columns */}
       {shiftsByDay.map((item, i) => (
-        <View key={i} style={styles.cell}>
+        <Pressable
+          key={i}
+          style={({ pressed }) => [
+            styles.cell,
+            pressed && !isHeader && { backgroundColor: "#F5F6FF" },
+          ]}
+          disabled={isHeader}
+          onPress={() => onCellPress?.(i, item as Shift | null)}
+        >
           {isHeader ? (
             <Text style={styles.headerText}>{item}</Text>
           ) : item ? (
-            <ShiftBlock time={item.time} role={item.role} />
-          ) : null}
-        </View>
+            <ShiftBlock
+              time={(item as Shift).time}
+              role={(item as Shift).role}
+            />
+          ) : (
+            <Text style={styles.emptyText}>+</Text>
+          )}
+        </Pressable>
       ))}
-    </RowWrapper>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
+  row: { flexDirection: "row", alignItems: "stretch" },
+
   cell: {
     flex: 1,
     minHeight: 54,
@@ -57,17 +64,22 @@ const styles = StyleSheet.create({
     borderColor: "#EEEEEE",
     padding: 6,
     justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "#fff",
   },
-  cellText: {
-    textAlign: "center",
-    fontSize: 14,
-    color: "#111",
-  },
+
+  cellText: { textAlign: "center", fontSize: 14, color: "#111" },
+
   headerText: {
     textAlign: "center",
     fontSize: 13,
     fontWeight: "700",
     color: "#111",
+  },
+
+  emptyText: {
+    fontSize: 18,
+    color: "#AAA",
+    fontWeight: "600",
   },
 });

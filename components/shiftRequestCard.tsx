@@ -24,42 +24,55 @@ export default function ShiftRequestCard({
 }: ShiftRequestCardProps) {
   return (
     <View style={styles.card}>
-      {/* Current Shift */}
+      {/* Current shift */}
       <View style={styles.shiftBlock}>
         <View style={[styles.accent, { backgroundColor: "#FFB74D" }]} />
         <View>
-          <Text style={styles.label}>{current.label}</Text>
-          <Text style={styles.name}>{current.name}</Text>
+          {/* label + name */}
+          <View style={styles.titleRow}>
+            <Text style={styles.label}>{current.label}</Text>
+            <Text style={styles.nameInline}>{current.name}</Text>
+          </View>
 
+          {/* date + time */}
           <View style={styles.metaRow}>
             <MaterialIcons name="event" size={14} color="#555" />
             <Text style={styles.metaText}>{current.date}</Text>
-          </View>
 
-          <View style={styles.metaRow}>
-            <MaterialIcons name="schedule" size={14} color="#555" />
+            <MaterialIcons
+              name="schedule"
+              size={14}
+              color="#555"
+              style={{ marginLeft: 10 }}
+            />
             <Text style={styles.metaText}>{current.time}</Text>
           </View>
         </View>
       </View>
 
-      {/* Swap */}
       <MaterialIcons name="swap-horiz" size={26} color="#111" />
 
-      {/* Requested Shift */}
+      {/* Requested shift */}
       <View style={styles.shiftBlock}>
         <View style={[styles.accent, { backgroundColor: "#7986CB" }]} />
         <View>
-          <Text style={styles.label}>{requested.label}</Text>
-          <Text style={styles.name}>{requested.name}</Text>
+          {/* label + name */}
+          <View style={styles.titleRow}>
+            <Text style={styles.label}>{requested.label}</Text>
+            <Text style={styles.nameInline}>{requested.name}</Text>
+          </View>
 
+          {/* date + time */}
           <View style={styles.metaRow}>
             <MaterialIcons name="event" size={14} color="#555" />
             <Text style={styles.metaText}>{requested.date}</Text>
-          </View>
 
-          <View style={styles.metaRow}>
-            <MaterialIcons name="schedule" size={14} color="#555" />
+            <MaterialIcons
+              name="schedule"
+              size={14}
+              color="#555"
+              style={{ marginLeft: 10 }}
+            />
             <Text style={styles.metaText}>{requested.time}</Text>
           </View>
         </View>
@@ -110,16 +123,21 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+
   label: {
     fontSize: 12,
     color: "#777",
-    marginBottom: 2,
   },
 
-  name: {
+  nameInline: {
     fontSize: 14,
     fontWeight: "600",
-    marginBottom: 6,
     color: "#111",
   },
 
