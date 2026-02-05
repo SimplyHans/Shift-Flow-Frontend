@@ -1,4 +1,3 @@
-import Header from '@/components/storePage/top-bar';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   FlatList,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import api from "@/app/config/axios";
+import TopBar from '@/components/storePage/top-bar';
 
 type Employee = {
   id: number;
@@ -25,6 +25,8 @@ export default function TeamScreen() {
   const [showActions, setShowActions] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [search, setSearch] = useState('');
+
 
   const buttonRefs = useRef<Record<number, any>>({});
 
@@ -52,6 +54,11 @@ export default function TeamScreen() {
       Alert.alert('Error', 'Failed to delete user');
     }
   };
+
+    const filteredEmployees = employees.filter((emp) => {
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    return fullName.includes(search.toLowerCase());
+  });
 
   const renderItem = ({ item }: { item: Employee }) => (
     <View style={styles.row}>
@@ -87,7 +94,7 @@ export default function TeamScreen() {
         onPress={() => {
           const btn = buttonRefs.current[item.id];
           btn?.measureInWindow((px: number, py: number) => {
-            setMenuPosition({ x: px - 160, y: py });
+            setMenuPosition({ x: px - 350, y: py });
             setSelectedEmployee(item);
             setShowActions(true);
           });
@@ -101,7 +108,8 @@ export default function TeamScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Header />
+<TopBar search={search} setSearch={setSearch} />
+
       </View>
 
       <View style={styles.tableHeader}>
@@ -113,8 +121,10 @@ export default function TeamScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      
+
       <FlatList
-        data={employees}
+        data={filteredEmployees}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
       />
