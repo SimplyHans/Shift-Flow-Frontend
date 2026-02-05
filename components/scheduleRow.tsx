@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import ShiftBlock from "./shiftBlock";
 
-type Shift = {
+export type Shift = {
   time: string;
   role: string;
 };
@@ -23,9 +23,7 @@ export default function ScheduleRow({
   return (
     <View style={styles.row}>
       <View style={styles.cell}>
-        <Text style={[styles.cellText, isHeader && styles.headerText]}>
-          {name}
-        </Text>
+        <Text style={[styles.cellText, isHeader && styles.headerText]}>{name}</Text>
       </View>
 
       {shiftsByDay.map((item, i) => (
@@ -36,15 +34,12 @@ export default function ScheduleRow({
             pressed && !isHeader && { backgroundColor: "#F5F6FF" },
           ]}
           disabled={isHeader}
-          onPress={() => onCellPress?.(i, item as Shift | null)}
+          onPress={() => onCellPress?.(i, (item as Shift) ?? null)}
         >
           {isHeader ? (
             <Text style={styles.headerText}>{item}</Text>
           ) : item ? (
-            <ShiftBlock
-              time={(item as Shift).time}
-              role={(item as Shift).role}
-            />
+            <ShiftBlock time={(item as Shift).time} role={(item as Shift).role} />
           ) : (
             <Text style={styles.emptyText}>+</Text>
           )}
@@ -56,7 +51,6 @@ export default function ScheduleRow({
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "stretch" },
-
   cell: {
     flex: 1,
     minHeight: 54,
@@ -67,19 +61,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
   },
-
   cellText: { textAlign: "center", fontSize: 14, color: "#111" },
-
-  headerText: {
-    textAlign: "center",
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#111",
-  },
-
-  emptyText: {
-    fontSize: 18,
-    color: "#AAA",
-    fontWeight: "600",
-  },
+  headerText: { textAlign: "center", fontSize: 13, fontWeight: "700", color: "#111" },
+  emptyText: { fontSize: 18, color: "#AAA", fontWeight: "600" },
 });
