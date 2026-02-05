@@ -19,12 +19,13 @@ type NavItem = {
 };
 
 const SHIFTS_ITEMS: NavItem[] = [
-  { label: 'Schedule', href: '/(tabs)/schedule', icon: 'calendar-today' },
+  { label: 'My Schedule', href: '/(tabs)/myschedule', icon: 'calendar-today' },
   { label: 'Open Shifts', href: '/(tabs)/open-shifts', icon: 'work' },
   { label: 'Requests', href: '/(tabs)/requests', icon: 'mark-email-unread' },
 ];
 
 const STORE_ITEMS: NavItem[] = [
+  { label: 'Schedule', href: '/(tabs)/schedule', icon: 'calendar-today' },
   { label: 'Team', href: '/(tabs)/team', icon: 'people' },
   { label: 'Availability', href: '/(tabs)/availability', icon: 'event-available' },
 ];
