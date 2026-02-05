@@ -1,70 +1,100 @@
 import Header from '@/components/storePage/top-bar';
-import React from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, TouchableWithoutFeedback } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  TouchableWithoutFeedback,
+  Alert,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import api from "@/app/config/axios";
+
+type Employee = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
+  createdAt: string;
+};
 
 export default function TeamScreen() {
-  const [showActions, setShowActions] = React.useState(false);
-  const [selectedEmployee, setSelectedEmployee] = React.useState<Employee | null>(null);
-  const [menuPosition, setMenuPosition] = React.useState({ x: 0, y: 0 });
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [showActions, setShowActions] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
-  const buttonRefs = React.useRef<Record<string, any>>({});
+  const buttonRefs = useRef<Record<number, any>>({});
 
-  type Employee = {
-    id: string;
-    name: string;
-    role: string;
-    department: string;
-    jobType: string;
-    hireDate: string;
+  /** ---------------- FETCH USERS ---------------- */
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/admin/users');
+      setEmployees(res.data);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to load users');
+    }
   };
 
-  const employees: Employee[] = [
-    { id: '1', name: 'Alice', role: 'Manager', department: 'HR', jobType: 'Full-Time', hireDate: '2022-01-10' },
-    { id: '2', name: 'Bob', role: 'Developer', department: 'IT', jobType: 'Full-Time', hireDate: '2021-06-15' },
-    { id: '3', name: 'Charlie', role: 'Intern', department: 'Marketing', jobType: 'Intern', hireDate: '2023-03-01' },
-  ];
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  /** ---------------- DELETE USER ---------------- */
+  const deleteUser = async (id: number) => {
+    try {
+      await api.delete(`/admin/users/${id}`);
+      setEmployees((prev) => prev.filter((u) => u.id !== id));
+      setShowActions(false);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to delete user');
+    }
+  };
 
   const renderItem = ({ item }: { item: Employee }) => (
     <View style={styles.row}>
       <View style={{ flex: 2, paddingHorizontal: 12 }}>
-        <Text style={styles.cell}>{item.name}</Text>
+        <Text style={styles.cell}>
+          {item.firstName} {item.lastName}
+        </Text>
       </View>
+
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
         <Text style={styles.cell}>{item.role}</Text>
       </View>
+
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
-        <Text style={styles.cell}>{item.department}</Text>
+        <Text style={styles.cell}>—</Text>
       </View>
+
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
-        <Text style={styles.cell}>{item.jobType}</Text>
+        <Text style={styles.cell}>
+          {item.role === 'EMPLOYEE' ? 'Hourly' : 'Salary'}
+        </Text>
       </View>
+
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
-        <Text style={styles.cell}>{item.hireDate}</Text>
+        <Text style={styles.cell}>
+          {new Date(item.createdAt).toLocaleDateString()}
+        </Text>
       </View>
-      <View>
+
       <TouchableOpacity
-        ref={(ref: any) => (buttonRefs.current[item.id] = ref)}
+        ref={(ref) => (buttonRefs.current[item.id] = ref)}
         style={styles.actionButton}
         onPress={() => {
           const btn = buttonRefs.current[item.id];
-          if (btn) {
-            btn.measureInWindow((px: number, py: any, width: any, height: any) => {
-              setMenuPosition({
-                x: px - 345, 
-                y: py, 
-              });
-              setSelectedEmployee(item);
-              setShowActions(true);
-            });
-          }
-        }}>
-          <Text style={styles.actionText}>⋮</Text>
-        </TouchableOpacity>
-      </View>
-
- 
-
+          btn?.measureInWindow((px: number, py: number) => {
+            setMenuPosition({ x: px - 160, y: py });
+            setSelectedEmployee(item);
+            setShowActions(true);
+          });
+        }}
+      >
+        <Text style={styles.actionText}>⋮</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -75,43 +105,27 @@ export default function TeamScreen() {
       </View>
 
       <View style={styles.tableHeader}>
-        <View style={{ flex: 2, paddingHorizontal: 12 }}>
-          <Text style={styles.headerCell}>Name</Text>
-        </View>
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
-          <Text style={styles.headerCell}>Role</Text>
-        </View>
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
-          <Text style={styles.headerCell}>Department</Text>
-        </View>
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
-          <Text style={styles.headerCell}>Job Type</Text>
-        </View>
-        <View style={{ flex: 1, paddingHorizontal: 12 }}>
-          <Text style={styles.headerCell}>Hire Date</Text>
-        </View>
+        <Text style={[styles.headerCell, { flex: 2 }]}>Name</Text>
+        <Text style={styles.headerCell}>Role</Text>
+        <Text style={styles.headerCell}>Department</Text>
+        <Text style={styles.headerCell}>Job Type</Text>
+        <Text style={styles.headerCell}>Hire Date</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <FlatList
         data={employees}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
-        style={styles.table}
       />
 
-      {/* Popover menu */}
-      {showActions && (
+      {showActions && selectedEmployee && (
         <TouchableWithoutFeedback onPress={() => setShowActions(false)}>
           <View style={styles.overlay}>
             <View
               style={[
                 styles.actionMenu,
-                {
-                  position: 'absolute',
-                  top: menuPosition.y,
-                  left: menuPosition.x,
-                },
+                { top: menuPosition.y, left: menuPosition.x },
               ]}
             >
               <TouchableOpacity
@@ -121,21 +135,30 @@ export default function TeamScreen() {
                   console.log('Edit', selectedEmployee);
                 }}
               >
-                <MaterialIcons name="edit" size={20} color="#000" />
+                <MaterialIcons name="edit" size={20} />
                 <Text style={styles.menuText}>Edit</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => {
-                  setShowActions(false);
-                  console.log('Delete', selectedEmployee);
-                }}
+                onPress={() =>
+                  Alert.alert(
+                    'Delete User',
+                    'Are you sure?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => deleteUser(selectedEmployee.id),
+                      },
+                    ]
+                  )
+                }
               >
                 <MaterialIcons name="delete" size={20} color="red" />
                 <Text style={[styles.menuText, { color: 'red' }]}>Delete</Text>
               </TouchableOpacity>
- 
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -143,6 +166,7 @@ export default function TeamScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   screen: {
