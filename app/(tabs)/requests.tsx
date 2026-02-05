@@ -1,45 +1,40 @@
 import { StyleSheet, Text, View } from "react-native";
+import ShiftRequestCard from "@/components/shiftRequestCard";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import ScheduleRow from "@/components/scheduleRow"; // ✅ adjust path if needed
 
 export default function RequestsScreen() {
-  // 🔁 TEMP toggle (later replace with DB logic)
-  const hasRequests = true; // 👈 change to false to see empty state
+  const hasRequests = true;
 
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Requests</Text>
 
-      {/* ✅ EMPTY STATE */}
       {!hasRequests && (
         <View style={styles.emptyWrap}>
           <View style={styles.subtitleRow}>
             <MaterialIcons name="swap-horiz" size={28} color="black" />
-            <Text style={styles.subtitle}>
-              Shift requests will appear here.
-            </Text>
+            <Text style={styles.subtitle}>Shift requests will appear here.</Text>
           </View>
         </View>
       )}
 
-      {/* ✅ REQUESTS EXIST */}
       {hasRequests && (
-        <View>
-          <ScheduleRow
-            rowIndex={0}
-      values={[
-        "Current Shift", // 👈 shows in first cell
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ]}
-          />
-
-        </View>
+        <ShiftRequestCard
+          current={{
+            label: "Current Shift",
+            name: "YOU",
+            date: "2025-11-17",
+            time: "3 p.m. - 11 p.m.",
+          }}
+          requested={{
+            label: "Requested Shift",
+            name: "Hans Casilao",
+            date: "2025-11-17",
+            time: "3 p.m. - 11 p.m.",
+          }}
+          onDecline={() => console.log("Decline")}
+          onAccept={() => console.log("Accept")}
+        />
       )}
     </View>
   );
@@ -50,15 +45,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     backgroundColor: "#FAFAFA",
-  },  
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    borderColor: "#EEEEEE",
-    backgroundColor: "white",
-    borderRadius: 6,
-    borderWidth: 1,
   },
 
   title: {
@@ -67,7 +53,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  /* Empty state */
   emptyWrap: {
     flex: 1,
     justifyContent: "center",
