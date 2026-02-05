@@ -1,35 +1,36 @@
-import { Tabs } from 'expo-router';
+import { Slot } from 'expo-router';
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import Sidebar from '@/components/sidebar';
+import { SidebarProvider } from '@/contexts/sidebar-context';
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+function TabsLayoutContent() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <View style={styles.container}>
+      <Sidebar />
+      <View style={styles.content}>
+        <Slot />
+      </View>
+    </View>
   );
 }
+
+export default function TabLayout() {
+  return (
+    <SidebarProvider>
+      <TabsLayoutContent />
+    </SidebarProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  content: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+});
