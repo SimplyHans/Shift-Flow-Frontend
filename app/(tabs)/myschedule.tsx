@@ -31,7 +31,7 @@ const HOURS = [
   "8 AM", "9 AM", "10 AM", "11 AM", "12 PM",
   "1 PM", "2 PM", "3 PM", "4 PM", "5 PM",
   "6 PM", "7 PM", "8 PM",
-];
+];  
 const HOUR_HEIGHT = 60;
 const START_HOUR = 8;
 
@@ -90,7 +90,6 @@ export default function MyScheduleScreen() {
     fetchShifts();
   }, [fetchShifts]);
 
-  // Group shifts by day (Sun=0 .. Sat=6) and render within each day column
   const shiftsByDay: Record<number, Shift[]> = {};
   DAY_NAMES.forEach((_, i) => (shiftsByDay[i] = []));
   shifts.forEach((s) => {
