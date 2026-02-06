@@ -163,37 +163,46 @@ export default function TeamScreen() {
       )}
 
       {/* ---------------- DELETE CONFIRM MODAL ---------------- */}
-      {showDeleteConfirm && selectedEmployee && (
-        <TouchableWithoutFeedback onPress={() => setShowDeleteConfirm(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Delete User</Text>
-              <Text style={styles.modalMessage}>
-                Are you sure you want to delete {selectedEmployee.firstName} {selectedEmployee.lastName}?
-              </Text>
+{showDeleteConfirm && selectedEmployee && (
+  <TouchableWithoutFeedback onPress={() => setShowDeleteConfirm(false)}>
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalTitleContainer}>
+          <MaterialIcons name="warning" size={24} color="#262626" />
+          <Text style={styles.modalTitle}>Are you sure you want to delete '{selectedEmployee.firstName} {selectedEmployee.lastName}'?</Text>
+        </View>
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: '#ccc' }]}
-                  onPress={() => setShowDeleteConfirm(false)}
-                >
-                  <Text>Cancel</Text>
-                </TouchableOpacity>
+        <View style={styles.divider} />
 
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: 'red' }]}
-                  onPress={() => {
-                    deleteUser(selectedEmployee.id);
-                    setShowDeleteConfirm(false);
-                  }}
-                >
-                  <Text style={{ color: 'white' }}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      )}
+        {/* Message */}
+        <Text style={styles.modalMessage}>
+          You cannot undo this change after submitting.
+        </Text>
+
+        {/* Buttons */}
+        <View style={styles.modalButtons}>
+          <TouchableOpacity
+            style={[styles.modalButton, styles.cancelButton]}
+            onPress={() => setShowDeleteConfirm(false)}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.modalButton, styles.deleteButton]}
+            onPress={() => {
+              deleteUser(selectedEmployee.id);
+              setShowDeleteConfirm(false);
+            }}
+          >
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </TouchableWithoutFeedback>
+)}
+
     </View>
   );
 }
@@ -284,40 +293,94 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginLeft: 8,
   },
+  
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: 300,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  modalMessage: {
-    fontSize: 15,
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  modalButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.4)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 999,
+},
+
+divider: {
+  height: 1,
+  backgroundColor: '#EBEBEB',
+  marginVertical: 10,
+},
+
+
+modalContainer: {
+  width: 500,
+  backgroundColor: '#fff',
+  borderRadius: 12,
+  padding: 20,
+},
+
+iconContainer: {
+  backgroundColor: '#E6F0FA',
+  borderRadius: 50,
+  padding: 10,
+  marginBottom: 15,
+},
+
+modalTitle: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  textAlign: 'left',
+  color: '#262626',
+  marginBottom: 2,
+},
+
+modalMessage: {
+  fontSize: 14,
+  textAlign: 'left',
+  color: '#555',
+  marginBottom: 20,
+},
+
+modalButtons: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  width: '100%',
+  gap: 10,
+},
+
+modalButton: {
+  flex: 1,
+  paddingVertical: 10,
+  borderRadius: 8,
+  alignItems: 'center',
+},
+
+cancelButton: {
+  borderWidth: 1,
+  borderColor: '#ccc',
+  backgroundColor: '#fff',
+},
+
+deleteButton: {
+  backgroundColor: 'red',
+},
+
+cancelButtonText: {
+  color: '#333',
+  fontWeight: '500',
+},
+
+deleteButtonText: {
+  color: '#fff',
+  fontWeight: '500',
+},
+modalTitleContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8, // spacing between icon and text
+  marginBottom: 2,
+},
+
+
 });
