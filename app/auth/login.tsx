@@ -37,8 +37,12 @@ export default function LoginScreen() {
       // Store token for authenticated requests
       if (data.token) {
         api.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
+        localStorage.setItem("user", JSON.stringify(data));
+        localStorage.setItem("token", data.token);
         // TODO: persist token with expo-secure-store when rememberMe is true
       }
+
+      
 
       router.replace("/(tabs)/myschedule");
     } catch (err: unknown) {
@@ -167,12 +171,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 45,
     fontWeight: "700",
-    marginBottom: 6,
     marginTop: 80,
   },
   subtitle: {
     textAlign: "center",
-    fontSize: 14,
+    fontSize: 18,
     opacity: 0.7,
     marginBottom: 80,
     marginTop: 15,
@@ -203,20 +206,20 @@ const styles = StyleSheet.create({
   input: {
     width: 450,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#9FA2BB",
     borderRadius: 12,
-    paddingHorizontal: 50,
+    paddingHorizontal: 20,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: "#fff",
+    backgroundColor: "#FAFBFF",
     marginHorizontal: 20,
   },
   button: {
-    width: 350,
+    width: 230,
     marginTop: 40,
     alignSelf: "center",
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 25,
+    paddingVertical: 20,
     alignItems: "center",
     backgroundColor: "#6579FF",
   },

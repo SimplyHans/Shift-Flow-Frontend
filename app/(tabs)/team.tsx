@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   View,
   TouchableWithoutFeedback,
-  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import api from "@/app/config/axios";
@@ -26,7 +25,7 @@ export default function TeamScreen() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
-
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const buttonRefs = useRef<Record<number, any>>({});
 
@@ -36,7 +35,7 @@ export default function TeamScreen() {
       const res = await api.get('/admin/users');
       setEmployees(res.data);
     } catch (err) {
-      Alert.alert('Error', 'Failed to load users');
+      console.log('Failed to load users', err);
     }
   };
 
@@ -51,15 +50,17 @@ export default function TeamScreen() {
       setEmployees((prev) => prev.filter((u) => u.id !== id));
       setShowActions(false);
     } catch (err) {
-      Alert.alert('Error', 'Failed to delete user');
+      console.log('Failed to delete user', err);
     }
   };
 
-    const filteredEmployees = employees.filter((emp) => {
+  /** ---------------- FILTER EMPLOYEES ---------------- */
+  const filteredEmployees = employees.filter((emp) => {
     const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
     return fullName.includes(search.toLowerCase());
   });
 
+  /** ---------------- RENDER ROW ---------------- */
   const renderItem = ({ item }: { item: Employee }) => (
     <View style={styles.row}>
       <View style={{ flex: 2, paddingHorizontal: 12 }}>
@@ -94,7 +95,7 @@ export default function TeamScreen() {
         onPress={() => {
           const btn = buttonRefs.current[item.id];
           btn?.measureInWindow((px: number, py: number) => {
-            setMenuPosition({ x: px - 350, y: py });
+            setMenuPosition({ x: px - 345, y: py + 20 }); // adjust so menu appears correctly
             setSelectedEmployee(item);
             setShowActions(true);
           });
@@ -108,8 +109,7 @@ export default function TeamScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-<TopBar search={search} setSearch={setSearch} />
-
+        <TopBar search={search} setSearch={setSearch} />
       </View>
 
       <View style={styles.tableHeader}>
@@ -121,54 +121,75 @@ export default function TeamScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      
-
       <FlatList
         data={filteredEmployees}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
       />
 
+      {/* ---------------- ACTION MENU ---------------- */}
       {showActions && selectedEmployee && (
-        <TouchableWithoutFeedback onPress={() => setShowActions(false)}>
-          <View style={styles.overlay}>
-            <View
-              style={[
-                styles.actionMenu,
-                { top: menuPosition.y, left: menuPosition.x },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowActions(false);
-                  console.log('Edit', selectedEmployee);
-                }}
-              >
-                <MaterialIcons name="edit" size={20} />
-                <Text style={styles.menuText}>Edit</Text>
-              </TouchableOpacity>
+        <View style={styles.overlay}>
+          {/* Background that closes the menu */}
+          <TouchableWithoutFeedback onPress={() => setShowActions(false)}>
+            <View style={styles.overlayBackground} />
+          </TouchableWithoutFeedback>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() =>
-                  Alert.alert(
-                    'Delete User',
-                    'Are you sure?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Delete',
-                        style: 'destructive',
-                        onPress: () => deleteUser(selectedEmployee.id),
-                      },
-                    ]
-                  )
-                }
-              >
-                <MaterialIcons name="delete" size={20} color="red" />
-                <Text style={[styles.menuText, { color: 'red' }]}>Delete</Text>
-              </TouchableOpacity>
+          {/* Menu itself */}
+          <View style={[styles.actionMenu, { top: menuPosition.y, left: menuPosition.x }]}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowActions(false);
+                console.log('Edit', selectedEmployee);
+              }}
+            >
+              <MaterialIcons name="edit" size={20} />
+              <Text style={styles.menuText}>Edit</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowActions(false);
+                setShowDeleteConfirm(true);
+              }}
+            >
+              <MaterialIcons name="delete" size={20} color="red" />
+              <Text style={[styles.menuText, { color: 'red' }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ---------------- DELETE CONFIRM MODAL ---------------- */}
+      {showDeleteConfirm && selectedEmployee && (
+        <TouchableWithoutFeedback onPress={() => setShowDeleteConfirm(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Delete User</Text>
+              <Text style={styles.modalMessage}>
+                Are you sure you want to delete {selectedEmployee.firstName} {selectedEmployee.lastName}?
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: '#ccc' }]}
+                  onPress={() => setShowDeleteConfirm(false)}
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: 'red' }]}
+                  onPress={() => {
+                    deleteUser(selectedEmployee.id);
+                    setShowDeleteConfirm(false);
+                  }}
+                >
+                  <Text style={{ color: 'white' }}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -176,7 +197,6 @@ export default function TeamScreen() {
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   screen: {
@@ -194,7 +214,7 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#ECECEC',
+    backgroundColor: 'white',
     paddingVertical: 10,
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
@@ -202,23 +222,18 @@ const styles = StyleSheet.create({
   headerCell: {
     flex: 1,
     fontWeight: 'bold',
-    textAlign: 'left', 
+    textAlign: 'left',
     paddingHorizontal: 12,
-  },
-  table: {
-    marginTop: 0, 
   },
   row: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#ECECEC',
     alignItems: 'center',
   },
   cell: {
     flex: 1,
-    textAlign: 'left', 
+    textAlign: 'left',
     paddingHorizontal: 12,
   },
   actionButton: {
@@ -227,7 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECECEC',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 5,
+    borderRadius: 10,
     marginRight: 15,
   },
   actionText: {
@@ -240,6 +255,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  overlayBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
   },
   actionMenu: {
     width: 160,
@@ -260,5 +283,41 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 15,
     marginLeft: 8,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: 300,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalMessage: {
+    fontSize: 15,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  modalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
   },
 });
