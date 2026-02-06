@@ -90,7 +90,6 @@ export default function MyScheduleScreen() {
     fetchShifts();
   }, [fetchShifts]);
 
-  // Group shifts by day (Sun=0 .. Sat=6) and render within each day column
   const shiftsByDay: Record<number, Shift[]> = {};
   DAY_NAMES.forEach((_, i) => (shiftsByDay[i] = []));
   shifts.forEach((s) => {
