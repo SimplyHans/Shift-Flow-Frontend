@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from "react";
-import { View, StyleSheet, Modal, Pressable, Text, ScrollView } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, StyleSheet, Modal, Pressable, Text, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
 import ScheduleRow, { Shift } from "@/components/scheduleRow";
+import api from "@/app/config/axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -11,6 +13,28 @@ const HOURS = [
   "1 PM", "2 PM", "3 PM", "4 PM", "5 PM",
   "6 PM", "7 PM", "8 PM",
 ];
+
+type AssignedEmployee = {
+  id: number;
+  firstName: string;
+  lastName: string;
+};
+
+type ShiftApi = {
+  id: number;
+  startTime: string; 
+  endTime: string;
+  position: string;
+  location: string;
+  assignedEmployee: AssignedEmployee;
+  createdBy?: { id: number; firstName: string; lastName: string };
+  createdAt?: string;
+};
+
+type MeResponse = {
+  email: string;
+  role: "ADMIN" | "MANAGER" | "EMPLOYEE" | string;
+};
 
 function toHourLabel(shiftTime: string) {
   const raw = shiftTime.split("–")[0]?.trim() ?? "";
@@ -21,27 +45,170 @@ function toHourLabel(shiftTime: string) {
   return `${hour} ${ampm}`;
 }
 
+function dayIndexMon0FromISO(iso: string) {
+  const js = new Date(iso).getDay();
+  return (js + 6) % 7;
+}
+
+function formatTimeRange(startTime: string, endTime: string) {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  const toStr = (d: Date) => {
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour = h % 12 || 12;
+    return m > 0 ? `${hour}:${m.toString().padStart(2, "0")}${ampm}` : `${hour}${ampm}`;
+  };
+
+  return `${toStr(start)} – ${toStr(end)}`;
+}
+
+function hourLabelTo24Hour(label: string) {
+  const [hStr, ampm] = label.split(" ");
+  let h = parseInt(hStr, 10);
+  const upper = (ampm ?? "").toUpperCase();
+
+  if (upper === "AM") {
+    if (h === 12) h = 0;
+  } else if (upper === "PM") {
+    if (h !== 12) h += 12;
+  }
+  return h;
+}
+
+function getMondayOfCurrentWeek() {\
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const diffToMonday = (day + 6) % 7; // Mon=0
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(now.getDate() - diffToMonday);
+  return monday;
+}
+
+function buildISOForSelected(dayIndexMon0: number, hourLabel: string) {
+  const monday = getMondayOfCurrentWeek();
+  const d = new Date(monday);
+  d.setDate(monday.getDate() + dayIndexMon0);
+
+  const h24 = hourLabelTo24Hour(hourLabel);
+  d.setHours(h24, 0, 0, 0);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const isoNoZ = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return isoNoZ;
+}
+
+async function getToken() {
+  const token = await AsyncStorage.getItem("token");
+  if (token) return token;
+
+  const userRaw = await AsyncStorage.getItem("user");
+  if (userRaw) {
+    try {
+      const u = JSON.parse(userRaw);
+      if (u?.token) return u.token as string;
+    } catch {}
+  }
+
+  return null;
+}
+
 export default function ScheduleScreen() {
-  const rows = useMemo(
-    () => [
-      {
-        name: "name1",
-        shiftsByDay: [
-          { time: "9:00am – 5:00pm", role: "Position" },
-          null, null, null, null, null, null,
-        ] as (Shift | null)[],
-      },
-      { name: "name2", shiftsByDay: [null, null, null, null, null, null, null] as (Shift | null)[] },
-      { name: "name3", shiftsByDay: [null, null, null, null, null, null, null] as (Shift | null)[] },
-    ],
-    []
-  );
+  const [role, setRole] = useState<string | null>(null);
+  const canManage = role === "ADMIN" || role === "MANAGER";
+
+  const [allShifts, setAllShifts] = useState<ShiftApi[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false); // for add/remove
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const { data } = await api.get<MeResponse>("/auth/me", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        setRole(data?.role ?? null);
+      } catch {
+        setRole(null);
+      }
+    })();
+  }, []);
+
+  const fetchAllShifts = useCallback(async () => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      const token = await getToken();
+
+      const { data } = await api.get<ShiftApi[]>("/shifts/all", {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      setAllShifts(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const backendMsg = err?.response?.data?.message;
+
+      console.log("GET /shifts/all failed:", status, err?.response?.data);
+
+      setError(
+        backendMsg ??
+          (status ? `Failed to load shifts (HTTP ${status}).` : "Failed to load shifts.")
+      );
+      setAllShifts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllShifts();
+  }, [fetchAllShifts]);
+
+  const { rows, idByCell } = useMemo(() => {
+    const map = new Map<string, (Shift | null)[]>();
+    const idMap = new Map<string, (number | null)[]>();
+
+    for (const s of allShifts) {
+      const name =
+        `${s.assignedEmployee?.firstName ?? ""} ${s.assignedEmployee?.lastName ?? ""}`.trim() ||
+        "Unknown";
+
+      const dayIndex = dayIndexMon0FromISO(s.startTime);
+
+      if (!map.has(name)) map.set(name, Array(7).fill(null));
+      if (!idMap.has(name)) idMap.set(name, Array(7).fill(null));
+
+      map.get(name)![dayIndex] = {
+        time: formatTimeRange(s.startTime, s.endTime),
+        role: s.position ?? "Shift",
+      };
+
+      idMap.get(name)![dayIndex] = s.id;
+    }
+
+    return {
+      rows: Array.from(map.entries()).map(([name, shiftsByDay]) => ({ name, shiftsByDay })),
+      idByCell: idMap,
+    };
+  }, [allShifts]);
+
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selected, setSelected] = useState<{
     employee: string;
     dayIndex: number;
     shift: Shift | null;
+    shiftId: number | null;
+    employeeId: number | null; 
   } | null>(null);
 
   const [openDropdown, setOpenDropdown] = useState<"start" | "end" | null>(null);
@@ -49,7 +216,19 @@ export default function ScheduleScreen() {
   const [endTime, setEndTime] = useState(HOURS[1]);
 
   const openPopup = (employee: string, dayIndex: number, shift: Shift | null) => {
-    setSelected({ employee, dayIndex, shift });
+    if (!canManage) return;
+
+    const shiftId = idByCell.get(employee)?.[dayIndex] ?? null;
+
+
+    let employeeId: number | null = null;
+    const match = allShifts.find((s) => {
+      const name = `${s.assignedEmployee?.firstName ?? ""} ${s.assignedEmployee?.lastName ?? ""}`.trim();
+      return name === employee;
+    });
+    employeeId = match?.assignedEmployee?.id ?? null;
+
+    setSelected({ employee, dayIndex, shift, shiftId, employeeId });
 
     const guess = shift?.time ? toHourLabel(shift.time) : null;
     const start = guess && HOURS.includes(guess) ? guess : HOURS[0];
@@ -68,69 +247,126 @@ export default function ScheduleScreen() {
     setOpenDropdown(null);
   };
 
-  const handleAddShift = () => {
+  const handleRemoveShift = useCallback(async () => {
+    if (!canManage) return;
+    if (!selected?.shiftId) return;
+
+    try {
+      setBusy(true);
+      setError(null);
+
+      const token = await getToken();
+      await api.delete(`/shifts/${selected.shiftId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      closePopup();
+      await fetchAllShifts();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const backendMsg = err?.response?.data?.message;
+
+      console.log("DELETE /shifts/{id} failed:", status, err?.response?.data);
+
+      Alert.alert("Error", backendMsg ?? (status ? `Failed to remove shift (HTTP ${status}).` : "Failed to remove shift."));
+    } finally {
+      setBusy(false);
+    }
+  }, [canManage, selected, fetchAllShifts]);
+
+  const handleAddShift = useCallback(async () => {
+    if (!canManage) return;
     if (!selected) return;
 
-    console.log("ADD SHIFT", {
-      employee: selected.employee,
-      day: DAYS[selected.dayIndex],
-      startTime,
-      endTime,
-      existingShift: selected.shift,
-    });
+    if (!selected.employeeId) {
+      Alert.alert(
+        "Can't add shift",
+        "I don't know this employee's ID yet. To add shifts for employees with no shifts, you need an endpoint to list employees (or include employeeId in your rows)."
+      );
+      return;
+    }
 
-    closePopup();
-  };
+    try {
+      setBusy(true);
+      setError(null);
 
-  const handleRemoveShift = () => {
-    if (!selected?.shift) return;
+      const token = await getToken();
 
-    console.log("REMOVE SHIFT", {
-      employee: selected.employee,
-      day: DAYS[selected.dayIndex],
-      shift: selected.shift,
-    });
 
-    closePopup();
-  };
+      const startISO = buildISOForSelected(selected.dayIndex, startTime);
+      const endISO = buildISOForSelected(selected.dayIndex, endTime);
+
+      const payload = {
+        assignedEmployeeId: selected.employeeId,
+        startTime: startISO,
+        endTime: endISO,
+        position: selected.shift?.role ?? "Shift",
+        location: "Store A",
+      };
+
+      await api.post("/shifts", payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      closePopup();
+      await fetchAllShifts();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const backendMsg = err?.response?.data?.message;
+
+      console.log("POST /shifts failed:", status, err?.response?.data);
+
+      Alert.alert("Error", backendMsg ?? (status ? `Failed to add shift (HTTP ${status}).` : "Failed to add shift."));
+    } finally {
+      setBusy(false);
+    }
+  }, [canManage, selected, startTime, endTime, fetchAllShifts]);
 
   return (
     <View style={styles.screen}>
-      <ScheduleRow isHeader name="" shiftsByDay={DAYS} />
+      <ScheduleRow isHeader name="" shiftsByDay={DAYS} canEdit={false} />
 
       <View style={styles.sectionHeader}>
         <Ionicons name="chevron-down" size={18} color="#111" />
         <ThemedText type="title" style={styles.sectionText}>
           Department
         </ThemedText>
+        <Text style={{ marginLeft: "auto", color: "#666", fontSize: 12 }}>
+          {role ? `Role: ${role}` : ""}
+        </Text>
       </View>
 
-      {rows.map((r) => (
-        <ScheduleRow
-          key={r.name}
-          name={r.name}
-          shiftsByDay={r.shiftsByDay}
-          onCellPress={(dayIndex, shift) => openPopup(r.name, dayIndex, shift)}
-        />
-      ))}
+      {loading ? (
+        <Text style={{ marginTop: 12 }}>Loading shifts...</Text>
+      ) : error ? (
+        <Pressable onPress={fetchAllShifts}>
+          <Text style={{ marginTop: 12, color: "red" }}>{error}</Text>
+          <Text style={{ marginTop: 6, color: "#111" }}>Tap to retry</Text>
+        </Pressable>
+      ) : rows.length === 0 ? (
+        <Text style={{ marginTop: 12, color: "#444" }}>No shifts found.</Text>
+      ) : (
+        rows.map((r) => (
+          <ScheduleRow
+            key={r.name}
+            name={r.name}
+            shiftsByDay={r.shiftsByDay}
+            canEdit={canManage} // ✅ ScheduleRow must use this to hide "+"
+            onCellPress={canManage ? (dayIndex, shift) => openPopup(r.name, dayIndex, shift) : undefined}
+          />
+        ))
+      )}
 
       {/* Popup Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closePopup}
-      >
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={closePopup}>
         <Pressable style={styles.backdrop} onPress={closePopup}>
           <Pressable style={styles.popup} onPress={() => {}}>
-                          <Pressable style={styles.closeBtn} onPress={closePopup}>
-                <Ionicons name="close" size={22} color="#111" />
-              </Pressable>
-            <Text style={styles.popupTitle}>{selected?.employee ?? ""}</Text>
+            <Pressable style={styles.closeBtn} onPress={closePopup}>
+              <Ionicons name="close" size={22} color="#111" />
+            </Pressable>
 
-            <Text style={styles.popupText}>
-              {selected ? DAYS[selected.dayIndex] : ""}
-            </Text>
+            <Text style={styles.popupTitle}>{selected?.employee ?? ""}</Text>
+            <Text style={styles.popupText}>{selected ? DAYS[selected.dayIndex] : ""}</Text>
 
             {selected?.shift ? (
               <Text style={styles.popupSubText}>
@@ -150,11 +386,7 @@ export default function ScheduleScreen() {
                   onPress={() => setOpenDropdown(openDropdown === "start" ? null : "start")}
                 >
                   <Text style={styles.dropdownTriggerText}>{startTime}</Text>
-                  <Ionicons
-                    name={openDropdown === "start" ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color="#111"
-                  />
+                  <Ionicons name={openDropdown === "start" ? "chevron-up" : "chevron-down"} size={16} color="#111" />
                 </Pressable>
 
                 {openDropdown === "start" && (
@@ -170,7 +402,6 @@ export default function ScheduleScreen() {
                           ]}
                           onPress={() => {
                             setStartTime(h);
-                            // auto set end to next slot
                             const idx = HOURS.indexOf(h);
                             setEndTime(HOURS[Math.min(idx + 1, HOURS.length - 1)]);
                             setOpenDropdown(null);
@@ -191,11 +422,7 @@ export default function ScheduleScreen() {
                   onPress={() => setOpenDropdown(openDropdown === "end" ? null : "end")}
                 >
                   <Text style={styles.dropdownTriggerText}>{endTime}</Text>
-                  <Ionicons
-                    name={openDropdown === "end" ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color="#111"
-                  />
+                  <Ionicons name={openDropdown === "end" ? "chevron-up" : "chevron-down"} size={16} color="#111" />
                 </Pressable>
 
                 {openDropdown === "end" && (
@@ -223,18 +450,21 @@ export default function ScheduleScreen() {
               </View>
             </View>
 
-            {/* Buttons: Remove shows only if there was a shift */}
-            <View style={styles.buttonRow}>
-              {selected?.shift ? (
-                <Pressable style={styles.removeBtn} onPress={handleRemoveShift}>
-                  <Text style={styles.removeBtnText}>Remove</Text>
-                </Pressable>
-              ) : null}
+            {canManage ? (
+              <View style={styles.buttonRow}>
+                {selected?.shiftId ? (
+                  <Pressable style={[styles.removeBtn, busy && { opacity: 0.6 }]} disabled={busy} onPress={handleRemoveShift}>
+                    <Text style={styles.removeBtnText}>Remove</Text>
+                  </Pressable>
+                ) : null}
 
-              <Pressable style={styles.addBtn} onPress={handleAddShift}>
-                <Text style={styles.addBtnText}>Add shift</Text>
-              </Pressable>
-            </View>
+                <Pressable style={[styles.addBtn, busy && { opacity: 0.6 }]} disabled={busy} onPress={handleAddShift}>
+                  <Text style={styles.addBtnText}>Add shift</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={{ marginTop: 10, color: "#777" }}>View only — ask a manager to edit shifts.</Text>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -269,6 +499,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 18,
+  },
+
+  closeBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    padding: 4,
+    zIndex: 10,
   },
 
   popupTitle: { fontSize: 18, fontWeight: "800", color: "#111", marginBottom: 4 },
@@ -329,12 +567,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "#111",
   },
-  addBtnText: { color: "#fff", fontWeight: "800" },closeBtn: {
-  position: "absolute",
-  top: 12,
-  right: 12,
-  padding: 4,
-  zIndex: 10,
-},
-
+  addBtnText: { color: "#fff", fontWeight: "800" },
 });
