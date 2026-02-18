@@ -12,6 +12,8 @@ type ScheduleRowProps = {
   shiftsByDay: (Shift | string | null)[];
   isHeader?: boolean;
   onCellPress?: (dayIndex: number, shift: Shift | null) => void;
+
+  canEdit?: boolean; 
 };
 
 export default function ScheduleRow({
@@ -19,6 +21,7 @@ export default function ScheduleRow({
   shiftsByDay,
   isHeader = false,
   onCellPress,
+  canEdit = true, 
 }: ScheduleRowProps) {
   return (
     <View style={styles.row}>
@@ -31,18 +34,21 @@ export default function ScheduleRow({
           key={i}
           style={({ pressed }) => [
             styles.cell,
-            pressed && !isHeader && { backgroundColor: "#F5F6FF" },
+            pressed && !isHeader && canEdit && { backgroundColor: "#F5F6FF" },
           ]}
-          disabled={isHeader}
-          onPress={() => onCellPress?.(i, (item as Shift) ?? null)}
+          disabled={isHeader || !canEdit}
+          onPress={() => {
+            if (!canEdit || isHeader) return;
+            onCellPress?.(i, (item as Shift) ?? null);
+          }}
         >
           {isHeader ? (
             <Text style={styles.headerText}>{item}</Text>
           ) : item ? (
             <ShiftBlock time={(item as Shift).time} role={(item as Shift).role} />
-          ) : (
+          ) : canEdit ? (
             <Text style={styles.emptyText}>+</Text>
-          )}
+          ) : null}
         </Pressable>
       ))}
     </View>
