@@ -14,6 +14,7 @@ const HOURS = [
   "6 PM", "7 PM", "8 PM",
 ];
 
+// ===== Backend DTO shape =====
 type AssignedEmployee = {
   id: number;
   firstName: string;
@@ -31,11 +32,13 @@ type ShiftApi = {
   createdAt?: string;
 };
 
+// ===== /auth/me DTO =====
 type MeResponse = {
   email: string;
   role: "ADMIN" | "MANAGER" | "EMPLOYEE" | string;
 };
 
+// ===== Helpers =====
 function toHourLabel(shiftTime: string) {
   const raw = shiftTime.split("–")[0]?.trim() ?? "";
   const m = raw.match(/^(\d{1,2})(?::\d{2})?\s*(am|pm)$/i);
@@ -46,6 +49,7 @@ function toHourLabel(shiftTime: string) {
 }
 
 function dayIndexMon0FromISO(iso: string) {
+  // JS: 0=Sun..6=Sat -> convert to Monday=0..Sunday=6
   const js = new Date(iso).getDay();
   return (js + 6) % 7;
 }
@@ -66,6 +70,7 @@ function formatTimeRange(startTime: string, endTime: string) {
 }
 
 function hourLabelTo24Hour(label: string) {
+  // label like "8 AM", "12 PM"
   const [hStr, ampm] = label.split(" ");
   let h = parseInt(hStr, 10);
   const upper = (ampm ?? "").toUpperCase();
@@ -78,7 +83,8 @@ function hourLabelTo24Hour(label: string) {
   return h;
 }
 
-function getMondayOfCurrentWeek() {\
+function getMondayOfCurrentWeek() {
+  // returns local Date at 00:00 of Monday this week
   const now = new Date();
   const day = now.getDay(); // 0=Sun
   const diffToMonday = (day + 6) % 7; // Mon=0
@@ -89,6 +95,7 @@ function getMondayOfCurrentWeek() {\
 }
 
 function buildISOForSelected(dayIndexMon0: number, hourLabel: string) {
+  // Build a local datetime for this week's selected day + hour, then to ISO string
   const monday = getMondayOfCurrentWeek();
   const d = new Date(monday);
   d.setDate(monday.getDate() + dayIndexMon0);
@@ -96,6 +103,7 @@ function buildISOForSelected(dayIndexMon0: number, hourLabel: string) {
   const h24 = hourLabelTo24Hour(hourLabel);
   d.setHours(h24, 0, 0, 0);
 
+  // Backend expects "2026-02-04T09:00:00" style (no Z)
   const pad = (n: number) => String(n).padStart(2, "0");
   const isoNoZ = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours()
@@ -104,9 +112,11 @@ function buildISOForSelected(dayIndexMon0: number, hourLabel: string) {
 }
 
 async function getToken() {
+  // Use ONE source of truth for token
   const token = await AsyncStorage.getItem("token");
   if (token) return token;
 
+  // fallback if some parts of your app saved it differently
   const userRaw = await AsyncStorage.getItem("user");
   if (userRaw) {
     try {
@@ -119,14 +129,17 @@ async function getToken() {
 }
 
 export default function ScheduleScreen() {
+  // ===== Auth role (controls edit permissions) =====
   const [role, setRole] = useState<string | null>(null);
   const canManage = role === "ADMIN" || role === "MANAGER";
 
+  // ===== Fetch shifts from backend =====
   const [allShifts, setAllShifts] = useState<ShiftApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false); // for add/remove
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch role once
   useEffect(() => {
     (async () => {
       try {
@@ -173,6 +186,8 @@ export default function ScheduleScreen() {
     fetchAllShifts();
   }, [fetchAllShifts]);
 
+  // ===== Convert backend shifts -> rows expected by ScheduleRow =====
+  // We also store a mapping so we can find the real backend shiftId when user taps a cell.
   const { rows, idByCell } = useMemo(() => {
     const map = new Map<string, (Shift | null)[]>();
     const idMap = new Map<string, (number | null)[]>();
@@ -201,14 +216,14 @@ export default function ScheduleScreen() {
     };
   }, [allShifts]);
 
-
+  // ===== Modal state =====
   const [modalVisible, setModalVisible] = useState(false);
   const [selected, setSelected] = useState<{
     employee: string;
     dayIndex: number;
     shift: Shift | null;
     shiftId: number | null;
-    employeeId: number | null; 
+    employeeId: number | null; // for POST
   } | null>(null);
 
   const [openDropdown, setOpenDropdown] = useState<"start" | "end" | null>(null);
@@ -220,7 +235,9 @@ export default function ScheduleScreen() {
 
     const shiftId = idByCell.get(employee)?.[dayIndex] ?? null;
 
-
+    // find employeeId from any shift in that row (best effort)
+    // If employee has no shifts at all, we can't infer employeeId from /shifts/all.
+    // In that case you’ll need a separate endpoint to list employees.
     let employeeId: number | null = null;
     const match = allShifts.find((s) => {
       const name = `${s.assignedEmployee?.firstName ?? ""} ${s.assignedEmployee?.lastName ?? ""}`.trim();
@@ -247,6 +264,7 @@ export default function ScheduleScreen() {
     setOpenDropdown(null);
   };
 
+  // ===== API actions =====
   const handleRemoveShift = useCallback(async () => {
     if (!canManage) return;
     if (!selected?.shiftId) return;
@@ -292,10 +310,11 @@ export default function ScheduleScreen() {
 
       const token = await getToken();
 
-
+      // Build ISO strings for backend
       const startISO = buildISOForSelected(selected.dayIndex, startTime);
       const endISO = buildISOForSelected(selected.dayIndex, endTime);
 
+      // IMPORTANT: adjust these field names if your CreateShiftRequest uses different ones
       const payload = {
         assignedEmployeeId: selected.employeeId,
         startTime: startISO,
