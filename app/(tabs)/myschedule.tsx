@@ -95,6 +95,7 @@ export default function MyScheduleScreen() {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [posting, setPosting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const [myOpenShiftIds, setMyOpenShiftIds] = useState<Set<number>>(new Set());
 
   const currentMonday = useMemo(() => getMondayOf(new Date()), []);
@@ -160,6 +161,7 @@ export default function MyScheduleScreen() {
   const handlePostOpen = () => {
     if (!selectedShift) return;
     setPosting(true);
+    setPostError(null);
     api.post("/open-shifts", { shiftId: selectedShift.id })
       .then(() => {
         setPostSuccess(true);
@@ -169,7 +171,10 @@ export default function MyScheduleScreen() {
           setPostSuccess(false);
         }, 1500);
       })
-      .catch((err) => console.error("Post failed", err?.response?.data))
+      .catch((err) => {
+        const msg = err?.response?.data?.message ?? "Failed to post shift. Please try again.";
+        setPostError(msg);
+      })
       .finally(() => setPosting(false));
   };
 
@@ -316,8 +321,8 @@ export default function MyScheduleScreen() {
       </ScrollView>
 
       {/* ===== Post Open Shift Modal ===== */}
-      <Modal visible={!!selectedShift} transparent animationType="none" onRequestClose={() => setSelectedShift(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setSelectedShift(null)}>
+      <Modal visible={!!selectedShift} transparent animationType="none" onRequestClose={() => { setSelectedShift(null); setPostError(null); }}>
+        <Pressable style={styles.backdrop} onPress={() => { setSelectedShift(null); setPostError(null); }}>
           <View style={styles.popup} onStartShouldSetResponder={() => true}>
             {postSuccess ? (
               <View style={styles.successWrap}>
@@ -348,6 +353,10 @@ export default function MyScheduleScreen() {
                   <Text style={styles.alreadyPostedText}>
                     This shift is already posted as open.
                   </Text>
+                )}
+
+                {postError && (
+                  <Text style={styles.postErrorText}>{postError}</Text>
                 )}
 
                 <View style={styles.popupActions}>
@@ -515,4 +524,5 @@ const styles = StyleSheet.create({
   postConfirmText: { color: "#fff", fontWeight: "700" },
   successWrap: { alignItems: "center", paddingVertical: 20, gap: 12 },
   successText: { fontSize: 18, fontWeight: "700", color: "#10B981" },
+  postErrorText: { fontSize: 13, fontWeight: "600", color: "#EF4444" },
 });
