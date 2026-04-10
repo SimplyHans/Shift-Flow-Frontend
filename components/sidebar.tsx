@@ -3,14 +3,16 @@ import { useSidebar } from '@/contexts/sidebar-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePathname, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  Platform,
 } from 'react-native';
+import api from '@/app/config/axios';
 
 type NavItem = {
   label: string;
@@ -34,12 +36,28 @@ export default function Sidebar() {
   const router = useRouter();
   const { isExpanded, toggleSidebar } = useSidebar();
   const pathname = usePathname();
-  const colorScheme = useColorScheme();
+  
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+    role: string;
+  } | null>(null);
 
-  const colors = Colors[colorScheme ?? 'light'];
   const isCompact = !isExpanded;
-  const sidebarWidth = isCompact ? 56 : 300;
+  const sidebarWidth = isCompact ? 64 : 240; // Reduced width
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await api.get('/auth/me'); 
+        setUser(res.data);
+      } catch (err) {
+        console.log('Sidebar user fetch error:', err);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const handleLogout = () => {
     setShowLogoutMenu(false);
@@ -48,26 +66,27 @@ export default function Sidebar() {
 
   const renderNavButton = (item: NavItem) => {
     const isActive = pathname === item.href;
+
     return (
       <Pressable
         key={item.href}
         onPress={() => router.push(item.href as any)}
         style={({ pressed }) => [
           styles.navButton,
-          isActive && [styles.navButtonActive, { backgroundColor: '#6579FF' }],
+          isActive && styles.navButtonActive,
           pressed && { opacity: 0.8 },
         ]}
       >
         <MaterialIcons
           name={item.icon}
           size={20}
-          color={isActive ? colors.tint : colors.icon}
+          color={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)'}
         />
         {!isCompact && (
           <Text
             style={[
               styles.navLabel,
-              { color: isActive ? colors.tint : colors.text },
+              { color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)' },
               isActive && styles.navLabelActive,
             ]}
           >
@@ -80,86 +99,71 @@ export default function Sidebar() {
 
   return (
     <>
-      <View
-  style={[
-    styles.sidebar,
-    {
-      width: sidebarWidth,
-      minWidth: isCompact ? 56 : 180,
-      backgroundColor: colors.secondClr,
-    },
-  ]}>
-        {/* Header */}
+      <View style={[styles.sidebar, { width: sidebarWidth }]}>
+        {/* Header - Text Logo Only */}
         <View style={[styles.header, isCompact && styles.headerCompact]}>
           {!isCompact && (
-            <Text style={[styles.title, { color: colors.text }]}>SHIFT 
-            FLOW</Text>
+            <Text style={styles.brandName}>SHIFT FLOW</Text>
           )}
-          <Pressable
-            onPress={toggleSidebar}
-            style={({ pressed }) => [styles.minimizeBtn, pressed && { opacity: 0.7 }]}
-          >
-            <MaterialIcons
-              name={isCompact ? 'chevron-right' : 'chevron-left'}
-              size={24}
-              color={colors.icon}
+          <Pressable onPress={toggleSidebar} style={styles.toggleBtn}>
+            <MaterialIcons 
+              name={isCompact ? 'menu' : 'menu-open'} 
+              size={22} 
+              color="#FFFFFF" 
             />
           </Pressable>
         </View>
 
-        {/* Categories */}
-        <View style={styles.navSection}>
-          {!isCompact && (
-            <Text style={[styles.categoryLabel, { color: colors.icon }]}>Shifts</Text>
-          )}
-          {SHIFTS_ITEMS.map(renderNavButton)}
+        {/* Navigation Container */}
+        <View style={styles.navContainer}>
+          <View style={styles.section}>
+            {!isCompact && <Text style={styles.sectionLabel}>Operations</Text>}
+            {SHIFTS_ITEMS.map(renderNavButton)}
+          </View>
+
+          <View style={styles.section}>
+            {!isCompact && <Text style={styles.sectionLabel}>Management</Text>}
+            {STORE_ITEMS.map(renderNavButton)}
+          </View>
         </View>
 
-        <View style={styles.navSection}>
-          {!isCompact && (
-            <Text style={[styles.categoryLabel, { color: colors.icon }]}>Store</Text>
-          )}
-          {STORE_ITEMS.map(renderNavButton)}
-        </View>
-
-        {/* Bottom - Logout area */}
         <View style={styles.spacer} />
+
+        {/* Profile Card - Professional White-on-Blue */}
         <Pressable
           onPress={() => setShowLogoutMenu(true)}
           style={({ pressed }) => [
-            styles.logoutArea,
-            { backgroundColor: '#7285ff' , borderColor: '#8495ff' },
-            pressed && { opacity: 0.9 },
+            styles.profileCard,
+            pressed && { backgroundColor: 'rgba(255, 255, 255, 0.15)' },
           ]}
         >
-          <Text
-            style={[styles.logoutPlaceholder, { color: colors.text }]}
-            numberOfLines={1}
-          >
-            {isCompact ? '' : 'Account'}
-          </Text>
-          <MaterialIcons name="more-vert" size={22} color={colors.icon} />
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {user ? user.firstName[0] : '?'}
+            </Text>
+          </View>
+          
+          {!isCompact && (
+            <View style={styles.profileDetails}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {user ? `${user.firstName} ${user.lastName}` : 'Loading...'}
+              </Text>
+              <Text style={styles.userRole} numberOfLines={1}>
+                {user ? user.role.toLowerCase() : 'Please wait'}
+              </Text>
+            </View>
+          )}
+          {!isCompact && <MaterialIcons name="more-vert" size={18} color="rgba(255, 255, 255, 0.6)" />}
         </Pressable>
       </View>
 
-      {/* Logout menu modal */}
-      <Modal
-        visible={showLogoutMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLogoutMenu(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowLogoutMenu(false)}
-        >
-          <View style={[styles.logoutMenu, { backgroundColor: colors.background }]}>
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [styles.logoutMenuItem, pressed && { opacity: 0.7 }]}
-            >
-              <MaterialIcons name="logout" size={20} color="#c62828" />
-              <Text style={styles.logoutMenuText}>Log out</Text>
+      {/* Floating Logout Menu */}
+      <Modal visible={showLogoutMenu} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowLogoutMenu(false)}>
+          <View style={[styles.floatingMenu, { left: isCompact ? 70 : 20 }]}>
+            <Pressable onPress={handleLogout} style={styles.menuItem}>
+              <MaterialIcons name="logout" size={18} color="#ef4444" />
+              <Text style={styles.menuItemText}>Sign Out</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -170,106 +174,135 @@ export default function Sidebar() {
 
 const styles = StyleSheet.create({
   sidebar: {
-    flex: 0,
-    alignSelf: 'stretch',
+    height: '100%',
+    backgroundColor: '#6579FF',
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
     borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
-    paddingVertical: 12,
-    minWidth: 180,
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    marginBottom: 40,
+    height: 30,
   },
   headerCompact: {
+    paddingHorizontal: 0,
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 15,
+  brandName: {
+    fontSize: 18,
     fontWeight: '900',
-    lineHeight: 18,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  minimizeBtn: {
+  toggleBtn: {
     padding: 4,
   },
-  navSection: {
-    marginBottom: 20,
+  navContainer: {
+    flex: 1,
+    zIndex: 10
   },
-  categoryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+  section: {
+    marginBottom: 28,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    paddingHorizontal: 16,
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    paddingHorizontal: 20,
   },
   navButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     gap: 12,
-    marginHorizontal: 8,
+    marginHorizontal: 10,
     borderRadius: 8,
   },
   navButtonActive: {
-     
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   navLabel: {
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '500',
   },
   navLabelActive: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   spacer: {
     flex: 1,
   },
-  logoutArea: {
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginHorizontal: 8,
-    marginTop: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  logoutPlaceholder: {
-    fontSize: 14,
-    fontWeight: '500',
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-    padding: 20,
-  },
-  logoutMenu: {
+    padding: 10,
+    marginHorizontal: 12,
+    marginBottom: 24,
     borderRadius: 12,
-    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 10,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#6579FF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  profileDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  userRole: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'capitalize',
+    marginTop: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  floatingMenu: {
+    position: 'absolute',
+    bottom: 80,
+    width: 160,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
     elevation: 5,
   },
-  logoutMenuItem: {
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    gap: 10,
+    padding: 12,
     borderRadius: 8,
   },
-  logoutMenuText: {
-    fontSize: 16,
-    color: '#c62828',
+  menuItemText: {
+    color: '#ef4444',
     fontWeight: '600',
+    fontSize: 14,
   },
 });
