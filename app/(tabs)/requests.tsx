@@ -12,9 +12,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   CANCELLED: { label: "Cancelled", color: "#6B7280", bg: "#F3F4F6" },
 };
 
+function isSameDay(a: string, b: string) {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate();
+}
+
 export default function RequestsScreen() {
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [managerRequests, setManagerRequests] = useState<any[]>([]);
+  const [myShifts, setMyShifts] = useState<any[]>([]);
   const [role, setRole] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,15 +34,16 @@ export default function RequestsScreen() {
       setMyUserId(res.data.id);
     }).catch(() => setRole(null));
 
-    // Load both inbox and sent, merge them
+    api.get("/shifts/me")
+      .then(res => setMyShifts(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setMyShifts([]));
+
     Promise.all([
       api.get("/swap-requests/inbox").then(r => r.data).catch(() => []),
       api.get("/swap-requests/sent").then(r => r.data).catch(() => []),
     ]).then(([inbox, sent]) => {
-      // Merge and deduplicate by id
       const merged = [...inbox, ...sent];
       const unique = Array.from(new Map(merged.map((r: any) => [r.id, r])).values());
-      // Sort by createdAt desc
       unique.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAllRequests(unique);
     }).finally(() => setLoading(false));
@@ -76,6 +86,13 @@ export default function RequestsScreen() {
 
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString();
+
+  // Check conflict — allow if the only shift on that day is the one being traded away
+  const hasConflict = (requesterShiftStartTime: string, myShiftInSwap: any) => {
+    return myShifts.some(s =>
+      isSameDay(s.startTime, requesterShiftStartTime) && s.id !== myShiftInSwap?.id
+    );
+  };
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} />;
 
@@ -131,6 +148,7 @@ export default function RequestsScreen() {
             const statusConfig = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.PENDING;
             const isTarget = r.targetUser?.id === myUserId;
             const canRespond = isTarget && r.status === "PENDING";
+            const conflict = canRespond && hasConflict(r.requesterShift.startTime, r.targetShift);
 
             return (
               <View key={r.id} style={styles.requestCard}>
@@ -172,6 +190,13 @@ export default function RequestsScreen() {
                   </View>
                 </View>
 
+                {/* Conflict warning */}
+                {conflict && (
+                  <Text style={styles.conflictText}>
+                    ⚠️ Schedule conflict — you already have another shift on this day.
+                  </Text>
+                )}
+
                 {/* Accept/Decline only if target and pending */}
                 {canRespond && (
                   <View style={styles.actions}>
@@ -182,7 +207,8 @@ export default function RequestsScreen() {
                       <Text style={styles.declineText}>Decline</Text>
                     </Pressable>
                     <Pressable
-                      style={styles.acceptBtn}
+                      style={[styles.acceptBtn, conflict && { opacity: 0.4 }]}
+                      disabled={conflict}
                       onPress={() => handleAccept(r.id)}
                     >
                       <Text style={styles.acceptText}>Accept</Text>
@@ -233,33 +259,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  shiftRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  shiftBlock: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 8,
-  },
-  accent: {
-    width: 4,
-    borderRadius: 2,
-    minHeight: 40,
-  },
+  statusText: { fontSize: 12, fontWeight: "600" },
+  shiftRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  shiftBlock: { flex: 1, flexDirection: "row", gap: 8 },
+  accent: { width: 4, borderRadius: 2, minHeight: 40 },
   shiftLabel: { fontSize: 13, fontWeight: "600", color: "#111" },
   shiftDate: { fontSize: 12, color: "#777" },
   shiftTime: { fontSize: 12, color: "#555" },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 8,
+  conflictText: {
+    fontSize: 12,
+    color: "#EF4444",
+    fontWeight: "600",
   },
+  actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   declineBtn: {
     paddingVertical: 6,
     paddingHorizontal: 14,

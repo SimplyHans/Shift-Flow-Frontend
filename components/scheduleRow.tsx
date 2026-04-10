@@ -32,7 +32,7 @@ export default function ScheduleRow({
     const cellDate = new Date(activeMonday);
     cellDate.setDate(activeMonday.getDate() + dayIndex);
     cellDate.setHours(0, 0, 0, 0);
-if (cellDate.getTime() === today.getTime()) return "#aff9b2";    return "#fff";
+if (cellDate.getTime() === today.getTime()) return "#b0ffb3";    return "#fff";
   };
 
   return (

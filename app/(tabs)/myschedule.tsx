@@ -59,6 +59,20 @@ function weekLabel(monday: Date): string {
   return `${fmt(monday)} – ${fmt(sunday)}`;
 }
 
+function buildDayHeaders(monday: Date): { day: string; date: string }[] {
+  return DAY_NAMES.map((day, i) => {
+    const d = new Date(monday);
+    // DAY_NAMES starts Sun=0, but monday is Mon, so offset by -1 (Sun = day 6 of the week starting Mon)
+    // Actually map: Mon=0, Tue=1, ... Sun=6
+    const offsets = [1, 2, 3, 4, 5, 6, 0]; // Sun, Mon, Tue, Wed, Thu, Fri, Sat -> offset from monday
+    d.setDate(monday.getDate() + offsets[i]);
+    return {
+      day,
+      date: `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`,
+    };
+  });
+}
+
 function parseShiftTimes(startTime: string, endTime: string) {
   const start = new Date(startTime);
   const end = new Date(endTime);
@@ -100,11 +114,17 @@ export default function MyScheduleScreen() {
   const currentMonday = useMemo(() => getMondayOf(new Date()), []);
 
   const weekOptions = useMemo(() => {
-    return Array.from({ length: 8 }, (_, i) => {
+    const past = Array.from({ length: 8 }, (_, i) => {
       const monday = new Date(currentMonday);
       monday.setDate(currentMonday.getDate() - (i + 1) * 7);
-      return { label: weekLabel(monday), monday };
+      return { label: weekLabel(monday), monday, isFuture: false };
     });
+    const future = Array.from({ length: 1 }, (_, i) => {
+      const monday = new Date(currentMonday);
+      monday.setDate(currentMonday.getDate() + (i + 1) * 7);
+      return { label: weekLabel(monday), monday, isFuture: true };
+    });
+    return [...future, ...past];
   }, [currentMonday]);
 
   const activeMonday = selectedWeekMonday ?? currentMonday;
@@ -114,6 +134,8 @@ export default function MyScheduleScreen() {
   const activeWeekLabel = selectedWeekMonday
     ? weekLabel(selectedWeekMonday)
     : `${weekLabel(currentMonday)} (Current)`;
+
+  const dayHeaders = useMemo(() => buildDayHeaders(activeMonday), [activeMonday]);
 
   const fetchShifts = useCallback(async () => {
     try {
@@ -244,7 +266,12 @@ export default function MyScheduleScreen() {
                 ]}
                 onPress={() => { setSelectedWeekMonday(opt.monday); setWeekDropdownOpen(false); }}
               >
-                <Text style={styles.weekDropdownItemText}>{opt.label}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={styles.weekDropdownItemText}>{opt.label}</Text>
+                  {opt.isFuture && (
+                    <Text style={styles.weekDropdownFutureTag}>Upcoming</Text>
+                  )}
+                </View>
               </Pressable>
             ))}
           </View>
@@ -253,11 +280,13 @@ export default function MyScheduleScreen() {
 
       <ScrollView horizontal>
         <View>
+          {/* Day headers with dates */}
           <View style={styles.headerRow}>
             <View style={styles.timeHeader} />
-            {DAY_NAMES.map((day) => (
-              <View key={day} style={styles.dayHeader}>
-                <Text style={styles.dayText}>{day}</Text>
+            {dayHeaders.map((h, i) => (
+              <View key={i} style={styles.dayHeader}>
+                <Text style={styles.dayText}>{h.day}</Text>
+                <Text style={styles.dayDate}>{h.date}</Text>
               </View>
             ))}
           </View>
@@ -283,7 +312,6 @@ export default function MyScheduleScreen() {
                     const top = (startHour - START_HOUR) * HOUR_HEIGHT;
                     const height = Math.max((endHour - startHour) * HOUR_HEIGHT, 40);
                     const isPast = new Date(shift.startTime) < new Date();
-                    const isPosted = myOpenShiftIds.has(shift.id);
 
                     return (
                       <Pressable
@@ -304,7 +332,6 @@ export default function MyScheduleScreen() {
                             {shift.location}
                           </Text>
                         ) : null}
-                        
                       </Pressable>
                     );
                   })}
@@ -427,11 +454,21 @@ const styles = StyleSheet.create({
   weekDropdownItem: { paddingVertical: 10, paddingHorizontal: 12 },
   weekDropdownItemActive: { backgroundColor: "#F5F6FF" },
   weekDropdownItemText: { fontSize: 13, color: "#111" },
+  weekDropdownFutureTag: {
+    fontSize: 11,
+    color: "#6366F1",
+    fontWeight: "600",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
 
   headerRow: { flexDirection: "row", marginBottom: 8 },
   timeHeader: { width: 60 },
   dayHeader: { width: 170, alignItems: "center", marginRight: 8 },
   dayText: { fontSize: 14, fontWeight: "700" },
+  dayDate: { fontSize: 11, color: "#6B7280", marginTop: 2 },
   body: { flexDirection: "row" },
   timeColumn: { width: 60 },
   timeSlot: { justifyContent: "flex-start", paddingTop: 4 },
@@ -460,7 +497,6 @@ const styles = StyleSheet.create({
   shiftTitle: { fontSize: 13, fontWeight: "700", color: "white" },
   shiftTime: { fontSize: 12, color: "#d5dae1" },
   shiftLocation: { fontSize: 11, color: "#b8c4d4", marginTop: 4 },
-  shiftHint: { fontSize: 10, color: "#c5caff", marginTop: 4, fontStyle: "italic" },
 
   backdrop: {
     flex: 1,
