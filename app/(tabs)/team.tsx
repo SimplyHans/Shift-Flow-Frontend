@@ -9,6 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import api from "@/app/config/axios";
 import TopBar from '@/components/storePage/top-bar';
 
@@ -22,39 +23,22 @@ type Employee = {
 };
 
 export default function TeamScreen() {
+  const router = useRouter();
   const [currentUserRole, setCurrentUserRole] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    const initializeScreen = async () => {
-      try {
-        // 1. Fetch the logged-in user's profile
-        const profileRes = await api.get('/auth/me');
-        setCurrentUserRole(profileRes.data.role); // Ensure your API returns { role: 'ADMIN' }
-
-        // 2. Fetch the employee list
-        const usersRes = await api.get('/admin/users');
-        setEmployees(usersRes.data);
-      } catch (err) {
-        console.error('Initialization failed', err);
-      }
-    };
-
-    initializeScreen();
-  }, []);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showActions, setShowActions] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({ firstName: '', lastName: '', role: '' });
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
 
   const buttonRefs = useRef<Record<number, any>>({});
 
-  /** ---------------- FETCH USERS ---------------- */
+  /** ---------------- FETCH USERS + ROLE ---------------- */
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users');
@@ -65,7 +49,18 @@ export default function TeamScreen() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const initializeScreen = async () => {
+      try {
+        const profileRes = await api.get('/auth/me');
+        setCurrentUserRole(profileRes.data.role);
+        const usersRes = await api.get('/admin/users');
+        setEmployees(usersRes.data);
+      } catch (err) {
+        console.error('Initialization failed', err);
+      }
+    };
+
+    initializeScreen();
   }, []);
 
   /** ---------------- HELPER: GET INITIALS ---------------- */
@@ -193,8 +188,13 @@ export default function TeamScreen() {
           style={styles.menuItem}
           onPress={() => {
             setShowActions(false);
-            // Add navigation logic here, e.g., router.push(`/availability/${selectedEmployee.id}`)
-            console.log('View Availability clicked');
+            router.push({
+              pathname: '/employee-availability',
+              params: {
+                employeeId: String(selectedEmployee.id),
+                name: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+              },
+            });
           }}
         >
           <MaterialIcons name="event-available" size={20} color="#4b4f64" />
@@ -202,7 +202,7 @@ export default function TeamScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ADMIN ONLY OPTIONS */}
+          {/* ADMIN ONLY OPTIONS */}
       {currentUserRole === 'ADMIN' && (
         <>
           <TouchableOpacity
