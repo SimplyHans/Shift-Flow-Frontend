@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import ShiftBlock from "./shiftBlock";
 
 export type Shift = {
@@ -12,8 +12,8 @@ type ScheduleRowProps = {
   shiftsByDay: (Shift | string | null)[];
   isHeader?: boolean;
   onCellPress?: (dayIndex: number, shift: Shift | null) => void;
-
-  canEdit?: boolean; 
+  canEdit?: boolean;
+  activeMonday?: Date;
 };
 
 export default function ScheduleRow({
@@ -21,36 +21,53 @@ export default function ScheduleRow({
   shiftsByDay,
   isHeader = false,
   onCellPress,
-  canEdit = true, 
+  canEdit = true,
+  activeMonday,
 }: ScheduleRowProps) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const getCellBackground = (dayIndex: number) => {
+    if (isHeader || !activeMonday) return "#fff";
+    const cellDate = new Date(activeMonday);
+    cellDate.setDate(activeMonday.getDate() + dayIndex);
+    cellDate.setHours(0, 0, 0, 0);
+if (cellDate.getTime() === today.getTime()) return "#aff9b2";    return "#fff";
+  };
+
   return (
     <View style={styles.row}>
       <View style={styles.cell}>
         <Text style={[styles.cellText, isHeader && styles.headerText]}>{name}</Text>
       </View>
+      {shiftsByDay.map((item, i) => {
+        const hasShift = !isHeader && !!item;
+        const isClickable = !isHeader && !!onCellPress && (canEdit || hasShift);
+        const bg = getCellBackground(i);
 
-      {shiftsByDay.map((item, i) => (
-        <Pressable
-          key={i}
-          style={({ pressed }) => [
-            styles.cell,
-            pressed && !isHeader && canEdit && { backgroundColor: "#F5F6FF" },
-          ]}
-          disabled={isHeader || !canEdit}
-          onPress={() => {
-            if (!canEdit || isHeader) return;
-            onCellPress?.(i, (item as Shift) ?? null);
-          }}
-        >
-          {isHeader ? (
-            <Text style={styles.headerText}>{item}</Text>
-          ) : item ? (
-            <ShiftBlock time={(item as Shift).time} role={(item as Shift).role} />
-          ) : canEdit ? (
-            <Text style={styles.emptyText}>+</Text>
-          ) : null}
-        </Pressable>
-      ))}
+        return (
+          <Pressable
+            key={i}
+            style={({ pressed }) => [
+              styles.cell,
+              { backgroundColor: pressed && isClickable ? "#F5F6FF" : bg },
+            ]}
+            disabled={!isClickable}
+            onPress={() => {
+              if (!isClickable) return;
+              onCellPress?.(i, (item as Shift) ?? null);
+            }}
+          >
+            {isHeader ? (
+              <Text style={styles.headerText}>{item}</Text>
+            ) : item ? (
+              <ShiftBlock time={(item as Shift).time} role={(item as Shift).role} />
+            ) : canEdit ? (
+              <Text style={styles.emptyText}>+</Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

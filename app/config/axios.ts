@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
-const rawBaseUrl = process.env.baseURL ?? process.env.EXPO_PUBLIC_baseURL ?? "localhost:9090/api";
+const rawBaseUrl = process.env.baseURL ?? process.env.EXPO_PUBLIC_baseURL ?? "192.168.18.20:9090/api";
 const baseURL = rawBaseUrl.startsWith("http") ? rawBaseUrl : `http://${rawBaseUrl}`;
 
 const api = axios.create({
@@ -8,5 +9,12 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-export default api;export { baseURL };
+api.interceptors.request.use(async (config) => {
+  const token = await AsyncStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export default api;
+export { baseURL };
 
