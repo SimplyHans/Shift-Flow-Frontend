@@ -33,6 +33,14 @@ type MyShift = {
   location: string;
 };
 
+function isSameDay(a: string, b: string) {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate();
+}
+
 export default function OpenShiftsScreen() {
   const [shifts, setShifts] = useState<OpenShift[]>([]);
   const [myShifts, setMyShifts] = useState<MyShift[]>([]);
@@ -97,7 +105,10 @@ export default function OpenShiftsScreen() {
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString();
 
-  // Filter out shifts that are already posted as open
+  const hasConflict = (openShiftStartTime: string) => {
+    return myShifts.some(s => isSameDay(s.startTime, openShiftStartTime));
+  };
+
   const postedShiftIds = new Set(shifts.map((s) => s.shiftId));
   const availableToPost = myShifts.filter(
     (s) => !postedShiftIds.has(s.id) && new Date(s.startTime) > new Date()
@@ -131,6 +142,8 @@ export default function OpenShiftsScreen() {
         contentContainerStyle={{ gap: 12 }}
         renderItem={({ item }) => {
           const isOwner = item.createdBy.id === myUserId;
+          const conflict = !isOwner && hasConflict(item.startTime);
+
           return (
             <View style={styles.card}>
               <View style={styles.cardLeft}>
@@ -149,6 +162,9 @@ export default function OpenShiftsScreen() {
                   <Text style={styles.postedBy}>
                     Posted by {item.createdBy.firstName} {item.createdBy.lastName}
                   </Text>
+                  {conflict && (
+                    <Text style={styles.conflictText}>⚠️ Schedule conflict</Text>
+                  )}
                 </View>
               </View>
 
@@ -162,7 +178,8 @@ export default function OpenShiftsScreen() {
                   </Pressable>
                 ) : (
                   <Pressable
-                    style={({ pressed }) => [styles.claimBtn, pressed && { opacity: 0.8 }]}
+                    style={[styles.claimBtn, conflict && { opacity: 0.4 }]}
+                    disabled={conflict}
                     onPress={() => handleClaim(item.id)}
                   >
                     <Text style={styles.claimText}>Claim</Text>
@@ -193,14 +210,14 @@ export default function OpenShiftsScreen() {
                     key={s.id}
                     onPress={() => setSelectedShiftId(s.id)}
                     style={[
-  styles.shiftOption,
-  isSelected && styles.shiftOptionSelected,
-]}
->
-  <Text style={styles.shiftOptionTitle}>{formatDate(s.startTime)}</Text>
-  <Text style={styles.shiftOptionSub}>
-    {formatTime(s.startTime)} - {formatTime(s.endTime)}
-  </Text>
+                      styles.shiftOption,
+                      isSelected && styles.shiftOptionSelected,
+                    ]}
+                  >
+                    <Text style={styles.shiftOptionTitle}>{formatDate(s.startTime)}</Text>
+                    <Text style={styles.shiftOptionSub}>
+                      {formatTime(s.startTime)} - {formatTime(s.endTime)}
+                    </Text>
                     {s.location ? (
                       <Text style={styles.shiftOptionSub}>{s.location}</Text>
                     ) : null}
@@ -266,13 +283,13 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, color: "#555" },
   postedBy: { fontSize: 12, color: "#999", marginTop: 6 },
+  conflictText: { fontSize: 12, color: "#EF4444", fontWeight: "600", marginTop: 4 },
   actions: { marginLeft: 12 },
   claimBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: "#7C83FF" },
   claimText: { color: "#fff", fontWeight: "600" },
   cancelBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: "#e57373" },
   cancelText: { color: "#e57373", fontWeight: "500" },
 
-  // Modal
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.35)",

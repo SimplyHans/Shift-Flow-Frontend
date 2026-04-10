@@ -135,7 +135,7 @@ export default function ScheduleScreen() {
 
   const currentMonday = useMemo(() => getMondayOf(new Date()), []);
   const pastWeeks = 8;
-  const futureWeeks = canManage ? 4 : 0;
+  const futureWeeks = canManage ? 4 : 1;
   const weekOptions = useMemo(
     () => buildWeekOptions(currentMonday, pastWeeks, futureWeeks),
     [currentMonday, pastWeeks, futureWeeks]
@@ -323,33 +323,22 @@ export default function ScheduleScreen() {
 
   const handleSwapRequest = useCallback(async () => {
     if (!selected?.shiftId) return;
-
     if (!mySelectedShiftId) {
       Alert.alert("Select a shift", "Please select one of your shifts to offer for the swap.");
       return;
     }
-
-    console.log("Sending swap request:", {
-      myShiftId: mySelectedShiftId,
-      targetShiftId: selected.shiftId,
-    });
-
     try {
       setBusy(true);
       const token = await getToken();
-      console.log("token:", token);
-      const response = await api.post("/swap-requests", {
+      await api.post("/swap-requests", {
         myShiftId: mySelectedShiftId,
         targetShiftId: selected.shiftId,
       }, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
-      console.log("Success:", response.data);
       Alert.alert("Success", "Swap request sent!");
       closePopup();
     } catch (err: any) {
-      console.log("Error status:", err?.response?.status);
-      console.log("Error data:", err?.response?.data);
       const backendMsg = err?.response?.data?.message;
       Alert.alert("Error", backendMsg ?? "Failed to send swap request.");
     } finally {
@@ -359,6 +348,7 @@ export default function ScheduleScreen() {
 
   const handleRemoveShift = useCallback(async () => {
     if (!canManage || !selected?.shiftId) return;
+    console.log("Removing shift:", selected.shiftId);
     try {
       setBusy(true);
       const token = await getToken();
@@ -368,6 +358,8 @@ export default function ScheduleScreen() {
       closePopup();
       await fetchAllShifts();
     } catch (err: any) {
+      console.log("Remove error status:", err?.response?.status);
+      console.log("Remove error data:", err?.response?.data);
       const backendMsg = err?.response?.data?.message;
       Alert.alert("Error", backendMsg ?? "Failed to remove shift.");
     } finally {
@@ -512,8 +504,9 @@ export default function ScheduleScreen() {
       )}
 
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={closePopup}>
-        <Pressable style={styles.backdrop} onPress={closePopup}>
-          <View style={styles.popup} onStartShouldSetResponder={() => true}>
+        <View style={styles.backdrop}>
+          <Pressable style={styles.backdropClose} onPress={closePopup} />
+          <View style={styles.popup}>
             <Pressable style={styles.closeBtn} onPress={closePopup}>
               <Ionicons name="close" size={22} color="#111" />
             </Pressable>
@@ -693,7 +686,7 @@ export default function ScheduleScreen() {
               </>
             )}
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );
@@ -772,6 +765,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
+  },
+  backdropClose: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   popup: {
     width: "100%",
