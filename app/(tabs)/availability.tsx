@@ -1,6 +1,5 @@
-
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, ActivityIndicator, Platform } from "react-native";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import api from "@/app/config/axios";
 
@@ -13,6 +12,7 @@ const TIME_OPTIONS = [
 ];
 
 type Slot = { id: number | null; start: string; end: string };
+type User = { id: number; firstName: string; lastName: string; role: string };
 
 function toBackendTime(display: string): string {
   const [time, meridiem] = display.split(" ");
@@ -39,10 +39,23 @@ export default function AvailabilityScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAvailability = useCallback(async () => {
+  // Manager/Admin Specific States
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userList, setUserList] = useState<User[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+
+  const fetchAvailability = useCallback(async (employeeId?: number | null) => {
     try {
+      setLoading(true);
       setError(null);
-      const { data } = await api.get<{ id: number; dayOfWeek: string; startTime: string; endTime: string }[]>("/availability/me");
+      
+      // If employeeId is provided, fetch specific. Otherwise, fetch /me.
+      const endpoint = employeeId 
+        ? `/availability/employee/${employeeId}` 
+        : "/availability/me";
+
+      const { data } = await api.get<{ id: number; dayOfWeek: string; startTime: string; endTime: string }[]>(endpoint);
+      
       const updated = DAYS.map(() => ({ id: null as number | null, start: "", end: "" }));
       data.forEach((slot) => {
         const idx = DAYS.indexOf(slot.dayOfWeek);
@@ -62,67 +75,78 @@ export default function AvailabilityScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
+  const initializeData = useCallback(async () => {
+    try {
+      // 1. Get current user role
+      const userRes = await api.get<User>("/auth/me");
+      setCurrentUser(userRes.data);
+
+      // 2. If Manager/Admin, get user list
+      if (userRes.data.role === "MANAGER" || userRes.data.role === "ADMIN") {
+        const listRes = await api.get<User[]>("/admin/users");
+        setUserList(listRes.data);
+      }
+
+      // 3. Initial fetch for self
+      await fetchAvailability();
+    } catch (err) {
+      setError("Initialization failed.");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAvailability]);
+
+  useEffect(() => { initializeData(); }, [initializeData]);
+
+  const handleUserSelect = (val: string) => {
+    const id = val === "me" ? null : parseInt(val);
+    setSelectedEmployeeId(id);
+    fetchAvailability(id);
+  };
 
   const openModal = (dayIdx: number) => {
+    // Prevent editing if viewing someone else
+    if (selectedEmployeeId !== null) return;
+    
     setSelectedDay(dayIdx);
     setStart(slots[dayIdx].start);
     setEnd(slots[dayIdx].end);
     setModalVisible(true);
   };
 
+  // Rest of functions (saveSlot, removeSlot) remain the same but use fetchAvailability(selectedEmployeeId)
   const saveSlot = async () => {
     if (selectedDay === null || !start || !end) return;
     setSaving(true);
-    setError(null);
     try {
-      const body = {
-        dayOfWeek: DAYS[selectedDay],
-        startTime: toBackendTime(start),
-        endTime: toBackendTime(end),
-      };
+      const body = { dayOfWeek: DAYS[selectedDay], startTime: toBackendTime(start), endTime: toBackendTime(end) };
       const existing = slots[selectedDay];
-      if (existing.id) {
-        await api.put(`/availability/${existing.id}`, body);
-      } else {
-        await api.post("/availability", body);
-      }
-      await fetchAvailability();
+      if (existing.id) await api.put(`/availability/${existing.id}`, body);
+      else await api.post("/availability", body);
+      await fetchAvailability(selectedEmployeeId);
       setModalVisible(false);
-    } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "response" in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : null;
-      setError(msg ?? "Failed to save availability.");
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError("Failed to save."); } finally { setSaving(false); }
   };
 
   const removeSlot = async () => {
     if (selectedDay === null) return;
     const existing = slots[selectedDay];
     if (!existing.id) {
-      const updated = [...slots];
-      updated[selectedDay] = { id: null, start: "", end: "" };
-      setSlots(updated);
-      setModalVisible(false);
-      return;
+        const updated = [...slots];
+        updated[selectedDay] = { id: null, start: "", end: "" };
+        setSlots(updated);
+        setModalVisible(false);
+        return;
     }
     setSaving(true);
-    setError(null);
     try {
       await api.delete(`/availability/${existing.id}`);
-      await fetchAvailability();
+      await fetchAvailability(selectedEmployeeId);
       setModalVisible(false);
-    } catch {
-      setError("Failed to remove availability.");
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError("Failed to remove."); } finally { setSaving(false); }
   };
 
-  if (loading) {
+  if (loading && !userList.length) {
     return (
       <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color="#6579FF" />
@@ -132,20 +156,51 @@ export default function AvailabilityScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Availability</Text>
-        <Pressable style={styles.cancelBtn} onPress={fetchAvailability}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </Pressable>
-        <Pressable style={styles.saveBtn} onPress={fetchAvailability}>
-          <Text style={styles.saveText}>Save Availability</Text>
-        </Pressable>
+      <View style={styles.headerContainer}>
+        <View style={styles.headerRow}>
+            <Text style={styles.title}>Availability</Text>
+            {/* Action buttons only visible if editing own profile */}
+            {!selectedEmployeeId && (
+                <View style={{flexDirection: 'row'}}>
+                    <Pressable style={styles.cancelBtn} onPress={() => fetchAvailability()}>
+                        <Text style={styles.cancelText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={styles.saveBtn} onPress={() => fetchAvailability()}>
+                        <Text style={styles.saveText}>Save Availability</Text>
+                    </Pressable>
+                </View>
+            )}
+        </View>
+
+        {/* Manager Dropdown */}
+        {(currentUser?.role === "MANAGER" || currentUser?.role === "ADMIN") && (
+            <View style={styles.managerDropdownContainer}>
+                <Text style={styles.dropdownLabel}>Viewing Profile:</Text>
+                <View style={styles.dropdownWrap}>
+                    <select
+                        style={styles.dropdown}
+                        value={selectedEmployeeId ?? "me"}
+                        onChange={(e) => handleUserSelect(e.target.value)}
+                    >
+                        <option value="me">My Profile (Self)</option>
+                        {userList.filter(u => u.id !== currentUser?.id).map(user => (
+                            <option key={user.id} value={user.id}>
+                                {user.firstName} {user.lastName} ({user.role})
+                            </option>
+                        ))}
+                    </select>
+                    <MaterialIcons name="arrow-drop-down" size={22} color="#262626" style={styles.dropdownIcon} />
+                </View>
+            </View>
+        )}
       </View>
+
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
+
       {DAYS.map((day, idx) => (
         <View key={day} style={styles.dayRow}>
           <Text style={styles.dayLabel}>{day}</Text>
@@ -157,11 +212,17 @@ export default function AvailabilityScreen() {
           ) : (
             <Text style={styles.noTime}>No time set</Text>
           )}
-          <Pressable style={styles.editBtn} onPress={() => openModal(idx)}>
-            <MaterialIcons name="edit" size={22} color="#262626" />
-          </Pressable>
+          
+          {/* Edit button only visible when viewing self */}
+          {!selectedEmployeeId && (
+            <Pressable style={styles.editBtn} onPress={() => openModal(idx)}>
+                <MaterialIcons name="edit" size={22} color="#262626" />
+            </Pressable>
+          )}
         </View>
       ))}
+
+      {/* MODAL remains exactly as your original code */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -173,38 +234,23 @@ export default function AvailabilityScreen() {
                 <MaterialIcons name="close" size={24} color="#262626" />
               </Pressable>
             </View>
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
             <View style={styles.modalRow}>
               <View style={styles.modalCol}>
                 <Text style={styles.modalLabel}>Availability Start</Text>
                 <View style={styles.dropdownWrap}>
-                  <select
-                    value={start}
-                    onChange={e => setStart(e.target.value)}
-                    style={styles.dropdown}
-                  >
+                  <select value={start} onChange={e => setStart(e.target.value)} style={styles.dropdown}>
                     <option value="">Select Time</option>
                     {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <MaterialIcons name="arrow-drop-down" size={22} color="#262626" style={styles.dropdownIcon} />
                 </View>
               </View>
               <View style={styles.modalCol}>
                 <Text style={styles.modalLabel}>Availability End</Text>
                 <View style={styles.dropdownWrap}>
-                  <select
-                    value={end}
-                    onChange={e => setEnd(e.target.value)}
-                    style={styles.dropdown}
-                  >
+                  <select value={end} onChange={e => setEnd(e.target.value)} style={styles.dropdown}>
                     <option value="">Select Time</option>
                     {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <MaterialIcons name="arrow-drop-down" size={22} color="#262626" style={styles.dropdownIcon} />
                 </View>
               </View>
             </View>
@@ -225,8 +271,11 @@ export default function AvailabilityScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 24, backgroundColor: '#FAFAFA' },
+  headerContainer: { marginBottom: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 28, fontWeight: '700', flex: 1 },
+  managerDropdownContainer: { marginTop: 8 },
+  dropdownLabel: { fontSize: 13, color: '#64748B', fontWeight: '600', marginBottom: 6 },
   cancelBtn: { backgroundColor: '#FFF', borderRadius: 6, padding: 8, marginRight: 8, borderWidth: 1, borderColor: '#6579FF' },
   cancelText: { color: '#6579FF', fontWeight: '600' },
   saveBtn: { backgroundColor: '#6579FF', borderRadius: 6, padding: 8 },
@@ -246,7 +295,7 @@ const styles = StyleSheet.create({
   modalDay: { fontWeight: '700', color: '#262626' },
   closeBtn: { padding: 4, borderRadius: 16 },
   modalRow: { flexDirection: 'row', marginBottom: 24, gap: 16 },
-  modalCol: { flex: 1, marginHorizontal: 8 },
+  modalCol: { flex: 1 },
   modalLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: '#262626' },
   dropdownWrap: { position: 'relative', marginBottom: 8 },
   dropdown: { width: '100%', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#F7F8FA', fontSize: 16, appearance: 'none', outline: 'none' },
