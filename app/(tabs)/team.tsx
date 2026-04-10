@@ -22,6 +22,25 @@ type Employee = {
 };
 
 export default function TeamScreen() {
+  const [currentUserRole, setCurrentUserRole] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const initializeScreen = async () => {
+      try {
+        // 1. Fetch the logged-in user's profile
+        const profileRes = await api.get('/auth/me');
+        setCurrentUserRole(profileRes.data.role); // Ensure your API returns { role: 'ADMIN' }
+
+        // 2. Fetch the employee list
+        const usersRes = await api.get('/admin/users');
+        setEmployees(usersRes.data);
+      } catch (err) {
+        console.error('Initialization failed', err);
+      }
+    };
+
+    initializeScreen();
+  }, []);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showActions, setShowActions] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -160,42 +179,63 @@ export default function TeamScreen() {
       />
 
       {/* ---------------- ACTION MENU ---------------- */}
-      {showActions && selectedEmployee && (
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => setShowActions(false)}>
-            <View style={styles.overlayBackground} />
-          </TouchableWithoutFeedback>
+{showActions && selectedEmployee && (
+  <View style={styles.overlay}>
+    <TouchableWithoutFeedback onPress={() => setShowActions(false)}>
+      <View style={styles.overlayBackground} />
+    </TouchableWithoutFeedback>
 
-          <View style={[styles.actionMenu, { top: menuPosition.y, left: menuPosition.x }]}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setEditData({
-                  firstName: selectedEmployee.firstName,
-                  lastName: selectedEmployee.lastName,
-                  role: selectedEmployee.role,
-                });
-                setShowActions(false);
-                setShowEditModal(true);
-              }}
-            >
-              <MaterialIcons name="edit" size={20} />
-              <Text style={styles.menuText}>Edit</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowActions(false);
-                setShowDeleteConfirm(true);
-              }}
-            >
-              <MaterialIcons name="delete" size={20} color="red" />
-              <Text style={[styles.menuText, { color: 'red' }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+    <View style={[styles.actionMenu, { top: menuPosition.y, left: menuPosition.x }]}>
+      
+      {/* MANAGER ONLY OPTION */}
+      {currentUserRole === 'MANAGER' && (
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => {
+            setShowActions(false);
+            // Add navigation logic here, e.g., router.push(`/availability/${selectedEmployee.id}`)
+            console.log('View Availability clicked');
+          }}
+        >
+          <MaterialIcons name="event-available" size={20} color="#4b4f64" />
+          <Text style={styles.menuText}>View Availability</Text>
+        </TouchableOpacity>
       )}
+
+      {/* ADMIN ONLY OPTIONS */}
+      {currentUserRole === 'ADMIN' && (
+        <>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setEditData({
+                firstName: selectedEmployee.firstName,
+                lastName: selectedEmployee.lastName,
+                role: selectedEmployee.role,
+              });
+              setShowActions(false);
+              setShowEditModal(true);
+            }}
+          >
+            <MaterialIcons name="edit" size={20} />
+            <Text style={styles.menuText}>Edit</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowActions(false);
+              setShowDeleteConfirm(true);
+            }}
+          >
+            <MaterialIcons name="delete" size={20} color="red" />
+            <Text style={[styles.menuText, { color: 'red' }]}>Delete</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  </View>
+)}
 
       {/* ---------------- EDIT MODAL ---------------- */}
       {showEditModal && selectedEmployee && (
