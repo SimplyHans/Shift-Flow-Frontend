@@ -16,7 +16,7 @@ type Employee = {
   id: number;
   firstName: string;
   lastName: string;
-  email?: string; // Added email to type
+  email?: string;
   role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
   createdAt: string;
 };
@@ -29,7 +29,6 @@ export default function TeamScreen() {
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
-  // New States for Editing
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({ firstName: '', lastName: '', role: '' });
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -49,6 +48,11 @@ export default function TeamScreen() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  /** ---------------- HELPER: GET INITIALS ---------------- */
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
 
   /** ---------------- DELETE USER ---------------- */
   const deleteUser = async (id: number) => {
@@ -86,7 +90,12 @@ export default function TeamScreen() {
   /** ---------------- RENDER ROW ---------------- */
   const renderItem = ({ item }: { item: Employee }) => (
     <View style={styles.row}>
-      <View style={{ flex: 2, paddingHorizontal: 12 }}>
+      <View style={{ flex: 2, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' }}>
+        {/* INITIALS LOGO */}
+        <View style={styles.initialsCircle}>
+          <Text style={styles.initialsText}>{getInitials(item.firstName, item.lastName)}</Text>
+        </View>
+        
         <Text style={styles.cell}>
           {item.firstName} {item.lastName}
         </Text>
@@ -260,7 +269,7 @@ export default function TeamScreen() {
           </View>
         </View>
       )}
- 
+
       {/* ---------------- DELETE CONFIRM MODAL ---------------- */}
       {showDeleteConfirm && selectedEmployee && (
         <View style={styles.modalOverlay}>
@@ -282,7 +291,6 @@ export default function TeamScreen() {
               You cannot undo this change after submitting.
             </Text>
 
-            {/* Buttons Container */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -312,9 +320,26 @@ const styles = StyleSheet.create({
   screen: { flex: 1, paddingTop: 80, paddingHorizontal: 10, backgroundColor: '#FAFAFA' },
   header: { position: 'absolute', top: 0, left: 0, right: 0, padding: 10 },
   tableHeader: { flexDirection: 'row', backgroundColor: 'white', paddingVertical: 10, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
-  headerCell: { flex: 1, fontWeight: 'bold', textAlign: 'left', paddingHorizontal: 12 },
+  headerCell: { flex: 1, fontWeight: 'bold', textAlign: 'left', paddingHorizontal: 12, color: '#4b4f64' },
   row: { flexDirection: 'row', backgroundColor: '#FFF', paddingVertical: 12, alignItems: 'center' },
   cell: { flex: 1, textAlign: 'left', paddingHorizontal: 12 },
+  
+  // INITIALS LOGO STYLES
+  initialsCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4b4f64',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  initialsText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+
   actionButton: { width: 40, height: 40, backgroundColor: '#ECECEC', justifyContent: 'center', alignItems: 'center', borderRadius: 10, marginRight: 15 },
   actionText: { fontSize: 18, fontWeight: 'bold' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
